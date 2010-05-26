@@ -1,0 +1,709 @@
+%\VignetteIndexEntry{coRNAi}
+%\VignetteKeywords{}
+%\VignettePackage{coRNAi}
+
+\documentclass[11pt]{article}
+\usepackage{amsmath}
+\usepackage{color}
+\definecolor{darkblue}{rgb}{0.0,0.0,0.75}
+\usepackage[%
+baseurl={http://www.bioconductor.org},%
+pdftitle={Analysis of co-RNAi screens},%
+pdfauthor={Elin Axelsson},%
+pdfsubject={coRNAi},%
+pdfkeywords={Bioconductor},%
+pagebackref,bookmarks,colorlinks,linkcolor=darkblue,citecolor=darkblue,%
+pagecolor=darkblue,raiselinks,plainpages,pdftex]{hyperref}
+
+\SweaveOpts{keep.source=TRUE,eps=FALSE,include=FALSE,width=4,height=4.5} 
+
+\newcommand{\Robject}[1]{\texttt{#1}}
+\newcommand{\Rpackage}[1]{\textit{#1}}
+\newcommand{\Rfunction}[1]{\textit{#1}}
+\newcommand{\Rclass}[1]{\textit{#1}}
+
+\newcommand{\myincfig}[3]{%
+  \begin{figure}[tp]
+    \begin{center}
+      \includegraphics[width=#2]{#1}
+      \caption{\label{#1}#3}
+    \end{center}
+  \end{figure}
+}
+
+\begin{document}
+
+\SweaveOpts{eps=false} % produce no 'eps' figures
+
+\title{Analysis of co-knockdown data}
+\author{Elin Axelsson}
+\date{}
+\maketitle
+
+\section{Introduction}
+
+<<echo=FALSE>>=
+makefig = function(expr, name, type="pdf", ppi=180, width=4.5, height=4.5){
+  fn = paste(name, type, sep=".")
+  if(!file.exists(fn)){
+    switch(type,
+       pdf = pdf(fn, width=width, height=height),
+       jpeg = jpeg(fn, width=width*ppi, height=height*ppi, pointsize=24),
+       stop(sprintf("Invalid type '%s'", type)))
+    expr
+    dev.off()
+    }
+  }
+@ 
+This is the vignette to the R package \Rpackage{coRNAi}. \Rpackage{coRNAi} consists of functions for analysing combinatorial RNAi knockdown screens. The package builds on the R package \Rpackage{cellHTS2} and takes a \Robject{cellHTS} object as input. In the section \emph{Creating cellHTS object for coRNAi}, we will discuss the extra annotations needed for the downstream analysis of combinatorial knockdown data and we will provide an example of a valid annotation file for \Rpackage{cellHTS2}. In the section \emph{Analysis of co-RNAi screens} we will illustrate the workflow by going through the analysis of two different datasets step by step. The section \emph{Moderated t-test} provides justifications for the usage of a moderated $t$-test, in the section \emph{Choice of fitness phenotype} we will briefly describe two possible fitness measurements. In the last section \emph{Analysis of large datasets} we will show how it is possible to speed up the analysis when working with large and interaction sparse datasets.
+
+
+
+\section{Creating cellHTS object for coRNAi}
+
+
+The vignette to the Rpackage \Rpackage{cellHTS2} illustrates how to create a \Robject{cellHTS} object and we recommend all users to follow the instructions. However, when creating your \Robject{cellHTS} object, keep in mind that co-knockdown experiments require more meta data than the straight forward single knockdown screens. This extra information should be provided in the annotation file read by the cellHTS2 function \Rfunction{annotate}. In addition to the mandatory columns of the annotation file: \emph{Plate}, \emph{Well} and \emph{GeneID}, the following should also be provided: \emph{ID1}, \emph{ID2} and \emph{Type}. 
+
+\textbf{ID1} and \textbf{ID2} are the names (or identifiers) of the two RNAi supplied to the well. In many experimental setups, the two RNAis are added in slightly different ways, e.g. in sequential order. In those cases it makes sense to keep track of this by e.g. calling the first RNAi ID1 and the second ID2. The \Rfunction{cellHTS2df} function will use the in information in ID1 and ID2 to create a column called \emph{Pair} and a column called \emph{Direction}. The Pair column does not take into account which if a RNAi treatment comes from ID1 or ID2. That is, combination x + y and combination y + x will have the same Pair ID (y x). The Direction however, will be different, 1 for treatment y+x and 2 for treatment x+y. This setup allows us to choice if we later want to consider y+x and x+y as replicates or not.
+
+\textbf{Type} indicates the type of the well and should be one of the following:\emph{double}, \emph{comb}, \emph{controlP1}, \emph{controlP2}, \emph{controlN1}, \emph{controlN2}, \emph{controlP1N1} or \emph{other}.
+
+
+\begin{itemize}
+\item{\textbf{double}}: ID1 and ID2 are the same, that is one gene is knockdown with the double amount of RNAi.
+\item{\textbf{comb}}: ID1 and ID2 are different but both are targeting sample genes (not controls)
+\item{\textbf{controlP1}}: a positive control is knocked-down in combination with a sample knockdown.
+\item{\textbf{controlP2}}: both RNAi target a positive control 
+\item{\textbf{controlN1}}: a negative control is knocked-down in combination with a sample knockdown.
+\item{\textbf{controlN2}}: both RNAi target a negative control 
+\item{\textbf{controlP1N1}}: a negative control and a positive control are knocked down.
+  \item{\textbf{other}}: any other type of combination, e.g. involving a intermediate control
+\end{itemize}
+
+\noindent The first lines of an example annotation file are shown below.
+
+\vspace{5 mm}
+\input{Annotationfile}
+\vspace{5 mm}
+Once this upgraded annotation file has been generated, the data can be read in by \Rpackage{cellHTS2} as described in the \Rpackage{cellHTS2} vignette.
+
+\section{Analysis of co-RNAi screens}
+
+\subsection{Getting started}
+First the package needs to be loaded into the R session:
+
+<<load libraries,results=hide>>=
+library("coRNAi")
+@ 
+
+
+The datasets we will use here are available as data objects in the \Rpackage{coRNAi} package and we can access them by using the \Rfunction{data} function. For your own saved datasets, the \Rfunction{load} function can be used. 
+
+<<load data>>=
+data(screen1_raw)
+data(screen2_raw)
+#data(num2name)
+@ 
+
+
+Once we have loaded the data into our session, we need to convert the \Robject{cellHTS} object into the data frame format that is used in the \Rpackage{coRNAi} package. The function \Rfunction{cellHTS2df} takes care of this. In addition to the \Robject{cellHTS} object we also need to provide information on which (if any) RNAi is to be considered as neutral in the experiment. In the datasets used in this vignette, dsRNA targeting Fluc was used as a negative control and therefore we set the neutral argument to Fluc. In the next step we $\log2$-transform the data.   
+
+<<make into data frame>>=
+dfR1 = cellHTS2df(screen1_raw,neutral=c("Fluc"))
+dfR2 = cellHTS2df(screen2_raw,neutral=c("Fluc"))
+dfR1$value = log2(dfR1$value)
+dfR2$value = log2(dfR2$value)
+@
+
+If we look at the first rows of the resulting data frame we will see that we now have the two additional columns ``Pair'' and ``Direction'', generated by the \Rfunction{cellHTS2df} based on the ID1 and ID2 annotations.
+
+<<>>=
+dfR2[1:2,]
+@ 
+
+
+\subsection{Normalisation}
+
+Screen 1 was done on one single plate but a simple boxplot (Figure~\ref{fig:boxbf}) shows that the value distribution is different over the 10 replicates. Screen 2 includes 24 plates, again we can see that distributions varies over the plates. The function \Rfunction{BoxPlotShorth} plots the normal boxplots, but with horizontal bars at the midpoint of the shorth rather than at the medians.
+
+\begin{figure}
+  \centering
+<<fig=TRUE,include=TRUE,width=9,height=4.5>>=
+mypars = list(cex.lab = 1,cex.main=1)
+par(mfrow=c(1,2))
+
+BoxPlotShorth(value~replicate,dfR1[dfR1$controlStatus=="sample",],
+              las=2,main="",xlab="plates",boxfill="lightblue",
+              outline=FALSE, ylab=expression(log[2](intensity)),pars=mypars)
+
+BoxPlotShorth(value~plate,dfR2[dfR2$controlStatus=="sample" & 
+                               dfR2$replicate==1,], las=2,
+              main="",xlab="plates",
+              boxfill="lightblue",outline=FALSE, 
+              ylab=expression(log[2](intensity)),pars=mypars)
+@  
+\caption{Boxplot for plates before normalization.}
+\label{fig:boxbf}
+\end{figure}
+There are many possible reasons for this variation between plates, but to allow for comparisons between individual plates one needs to normalise the plates. The function \Rfunction{normalizePlates} from the package \Rpackage{cellHTS2} takes care of the normalisation and can also be used to transform the data to the log scale. The following lines of code normalizes the screens and converts the normalized data into a data frame.
+
+<<normaliztion methods>>=
+dfScl1 = cellHTS2df(normalizePlates(screen1_raw,method="shorth",
+  scale="multiplicative",log=TRUE),neutral="Fluc")
+dfScl2 = cellHTS2df(normalizePlates(screen2_raw,method="shorth",
+  scale="multiplicative",log=TRUE),neutral="Fluc")
+@
+
+
+After the normalisation the boxplots (Figure~\ref{fig:boxaf}) look better:
+\begin{figure}
+  \centering
+<<fig=TRUE,include=TRUE,width=9, height=4.5>>=
+par(mfrow=c(1,2))
+BoxPlotShorth(value~replicate,dfScl1[dfScl1$controlStatus=="sample",],
+              las=2, main="",xlab="plates",boxfill="lightpink",
+              outline=FALSE,ylab=expression(log[2](intensity)))
+BoxPlotShorth(value~plate,dfScl2[dfScl2$controlStatus=="sample"&
+                                 dfScl2$replicate==1,],
+              boxfill="lightpink",las=2,main= "",
+              xlab="plates",outline=FALSE,ylab=expression(log[2](intensity)))
+@ 
+\caption{Boxplot for plates after normalization.}
+\label{fig:boxaf}
+\end{figure}
+
+\subsection{Quality Assessment plots}
+
+\subsubsection{Screen control plots}
+
+A screen plot is a false colour representation of all plates in an experiment. Normally, one does not wish to see any spatial trends in the screen plot, but due to the experimental setup used in the experiments analysed here, the stripped patterns across the plates are expected. Unexpected spatial trends should be removed if possible and the experimental cause should be investigated and improved upon. 
+
+\begin{figure}
+  \centering
+<<fig=TRUE,include=TRUE,width=10,height=3>>=
+plotScreen(split(dfScl1$value,dfScl1$replicate),fill = 
+           c("red","white","blue"),zrange=c(-4,4),ncol=5,
+            main="screen 1",legend.label=NULL)
+@ 
+\caption{Screen plot for screen 1.}
+\label{fig:scpl1}
+\end{figure}
+Screen 1 was done with two biological replicates, each with 5 technical replicates. As can be seen in Figure~\ref{fig:scpl1}, the colours are brighter in one of the two biological replicates, plates 6-10, than in the other, plates 1-5. This means that the dynamic range is larger in plates 5-10. 
+
+For screen 2 we plot each screen replicate separately, here in Figure~\ref{fig:scpl2} is the plot for replicate 1.
+
+\begin{figure}
+  \centering
+<<fig=TRUE,include=TRUE,width=13,height=8>>=
+plotScreen(split(dfScl2$value[dfScl2$replicate==1],
+                 dfScl2$plate[dfScl2$replicate==1]),fill = 
+           c("red","white","blue"),zrange=c(-9,9),
+           main="screen 2",legend.label=NULL)
+@ 
+\caption{Screen plot for screen 2, replicate 1}
+  \label{fig:scpl2}
+\end{figure}
+
+
+Next, plotting replicates against each other will provide important insight to how well the experiments have worked. Systematic errors as well as sporadic contaminations can be detected. The function \Rfunction{WitinScreenPlot} plots the two replicates from the same screen against each other. 
+
+\begin{figure}
+  \centering
+<<fig=TRUE,include=TRUE,width=9,height=4.5>>=
+
+par(mfrow=c(1,2))
+WithinScreenPlot(dfScl1,what="value",main="",smooth=T,pch=".")
+WithinScreenPlot(dfScl2,what="value",main="",smooth=T,pch=".")
+points(dfScl2$value[dfScl2$Pair=="P2 P1" & dfScl2$replicate==2 & 
+                    dfScl2$Direction==1],dfScl2$value[dfScl2$Pair=="P2 P1" & 
+                      dfScl2$replicate==2 & dfScl2$Direction==2],
+       col="red",pch=19)
+points(dfScl2$value[dfScl2$Pair=="P57 P1" & dfScl2$replicate==2 &
+                    dfScl2$Direction==1],dfScl2$value[dfScl2$Pair=="P57 P1" & 
+                      dfScl2$replicate==2 & dfScl2$Direction==2],
+       col="red",pch=19)
+@ 
+\caption{Within screen replication for screen 2.}
+\label{fig:wsr2}
+\end{figure}
+We can see in Figure~\ref{fig:wsr2} that the correlations between the two within screen replicates in general are good. There are two obvious outliers in screen 2, coloured red in the plot. As the screen was done with replicates, it is possible to identify which of the values should be removed. One of the red spots represent a ``P2-P1'' data point. We can see that it is Direction 1 in replicate 2 that's the outlier.
+
+<<show data>>=
+dfScl2[dfScl2$Pair =="P2 P1",c("Pair","Direction","replicate","value")]
+dfScl2$value[dfScl2$Pair =="P2 P1" & dfScl2$Direction==1 & 
+             dfScl2$Replicate==2]=NA
+@ 
+
+For an example of how systematic errors can be detected, we have a look at the dataset \Robject{faultyscreen}. Here we have a systematic problem with column 13, caused by a faulty multichannel pipette. Figure~\ref{fig:wsrfa} shows how the \Robject {WithinScreenPlots} look for this dataset before and after removal of the faulty values. 
+
+\begin{figure}
+  \centering
+<<fig=TRUE,include=TRUE,width=9,height=4.5>>=
+data(faultyscreen)
+par(mfrow=c(1,2))
+fdf = cellHTS2df(normalizePlates(faultyscreen,method="shorth",
+  scale="multiplicative",log=TRUE),neutral="Fluc")
+WithinScreenPlot(fdf[fdf$replicate==2,],main="with plate column 13"
+                 ,pch=".",smooth=FALSE)
+systerr = which(fdf$Pair%in%(unique(fdf$Pair[grep(13,fdf$well)])))
+fdf$value[systerr]=NA
+WithinScreenPlot(fdf[fdf$replicate==2,],main="without plate column 13"
+                 ,pch=".",smooth=FALSE)
+@ 
+\caption{Within screen replicates in faulty screen}
+\label{fig:wsrfa}
+\end{figure}
+Now back to our good datasets, we will now look at the correlation between the screen replicates. The function \Rfunction{BetweenScreenPlot} plot all replicates of a screen against all. It also shows the spearman correlation between all pairwise comparisons. Here we will plot the between screen plot for screen 1:
+
+\begin{figure}
+  \centering
+<<fig=TRUE,include=TRUE,width=10,height=10>>=
+BetweenScreenPlot(dfScl1,smooth=FALSE)
+@ 
+\caption{Between screen replicates in screen 1}
+\label{fig:bsr1}
+\end{figure}
+The correlations between the screens are high and we do not see any outliers or systematic trends. However, an interesting observation is that replicates 1 to 5 and 6 to 10 have higher similarities to each other than to replicates in the other group. As mentioned before, replicates 1 to 5 are technical replicates of one biological replicate and replicates 6 to 10 are technical replicates of the other biological replicate. For simplicity we will refer to replicates 1-5 as batch 1 and replicates 6-10 as batch 2. The following lines add this information. 
+
+<<add batch info>>=
+dfScl1$batch[dfScl1$replicate%in%1:5]=1
+dfScl1$batch[dfScl1$replicate%in%6:10]=2
+@ 
+
+
+Figure~\ref{bsr1} suggests that we might gain power by fitting the main effects separately for each biological replicate, we will investigate this in more details in Section~\ref{sec:maineffects} . 
+
+
+Next we have to decide which data we want to include in the analysis. The wells with only RNAi against controls (controlN2, controlP1N1 and controlP2) do not add anything to the interaction analysis and should be excluded. In addition there might be cases when one does not want to include the so called ``double'' and/or ``single'' (controlN1) knockdowns. The function \Rfunction{weightDf} is used to exclude unwanted data points from the down stream analysis.
+
+<<add weights>>=
+dfScl1 = weightDf(dfScl1,exclude = c("controlN2", "controlP2","controlP1N1"
+                           ,"controlP1","double","controlN1"))
+
+dfScl2 = weightDf(dfScl2,exclude = c("controlN2", "controlP2","controlP1N1"
+                           ,"controlP1","double","controlN1"))
+@ 
+
+
+
+\section{Effect estimation}
+\label{sec:maineffects}
+
+The next step is to estimate the main effects, that is the effects caused by each RNAi separately. This is done by the function \Rfunction{lmmain} or by the \Rfunction{rlmmain} which uses a robust M estimator. As mentioned earlier, it sometimes makes sense to fit the main effects separately for each replicate. From our BetweenScreenPlot earlier we know that the different batches in screen 1 look different so we choose to fit main effects for each batch separately. 
+
+<<main effects estimate screen1>>=
+lmres1 = lmmain(dfScl1,per = "batch") 
+@ 
+
+The three replicates in screen 2 are also biological replicates and we choose to fit the main effects separately for each replicate. We can also fit the main effects separately for each Direction if we so wish.   
+
+<<main effects estimate screen2>>=
+lmres2D= lmmain(dfScl2,per = c("replicate","Direction"))
+lmres2 = lmmain(dfScl2,per = c("replicate"))
+@ 
+
+The result is a \Robject{lm} object or, when different batches, replicates etc are fitted separately, a list with one lm object per fit. The fitted main effects are in the slot \Robject{coefficient}. We can have a look at the main effects in screen 1 in the following barplot:
+
+\begin{figure}
+  \centering 
+<<fig=TRUE, include=TRUE,width=4,height=4>>=
+
+barplot(t(sapply(lmres1,function(x) x$coefficient)),las=2,beside=T,
+        col=c("skyblue","steelblue"))
+legend("topleft",legend=c("batch1","batch2"),fill=c("skyblue","steelblue"))
+@         
+\caption{``Main'' effects in screen 1}
+\label{fig:barp}
+\end{figure}
+We now have an estimate of the non-interaction effects for each well. The residuals after fitting this model to the data are our interaction observations. To add the residuals to our data frame object we use the function \Rfunction{updateDf} with the \Robject{dataframe} and the result from the \Rfunction{lmmain} or \Rfunction{rlmmain} function as arguments. 
+
+<<update>>=
+dfScl1 = updateDf(dfScl1,lmres1,per = "batch")
+dfScl2 = updateDf(dfScl2,lmres2,per=c("replicate"))
+head(dfScl1)
+@
+
+We can see that the data points of type 'comb' now have a residuals value, whereas the data types which had been excluded by the \Rfunction{weightDf} will have NA in the residuals column. 
+
+\subsection{Fit diagnostic}
+
+At this point it is important to have a look at the fit diagnostics. Plotting the residuals as a function of the sum of the two main effects in each well will tell us if there is a trend in the data, e.g. that wells with high expected viability effects have larger residuals. This would indicate that the model used is inappropriate. 
+
+\begin{figure}
+  \centering
+<<fig=TRUE,include=TRUE,height=4.5,width=9>>=
+
+par(mfrow=c(1,2))
+MainFitPlot(lmres1,xlab=expression(hat(y)[0*k]+hat(m)[i*k]+hat(m)[j*k]),
+            ylab=expression(epsilon[i*j*k]),pch=".",main="screen 1")
+MainFitPlot(lmres2,xlab=expression(hat(y)[0*k]+hat(m)[i*k]+hat(m)[j*k]),
+            ylab=expression(epsilon[i*j*k]),pch=".",main="screen 2",sd.fit=FALSE)
+@
+\caption{Fit diagnostics for screen 1 and 2.}
+\label{fig:mfp}
+\end{figure}
+
+The red and blue lines indicate local regression 
+  estimates of local mean and standard deviation
+  of $\varepsilon_{ijk}$. We don't see any large trend in the data. In is worth noticing that different knock down pairs might have different variability. For the 50 randomly chosen pairs in screen 1 the boxplot look as this:
+
+\begin{figure}
+  \centering
+<<fig=TRUE,include=TRUE,width=9,height=4.5>>=
+pairs=sample(unique(dfScl1$Pair[dfScl1$Type=="comb"]),50)
+sub = dfScl1[dfScl1$Pair%in%pairs,]
+boxplot(residuals~Pair,sub,las=2,axis.cex=0.5,col ="palevioletred",
+        ylab=expression(epsilon[i*j*k]),xlab="RNAi combinations",
+        names = NA,xaxt="n")
+abline(h=0,lwd=2)
+@
+\caption{Boxplot of residuals from 50 interaction pairs in screen 1.}
+\label{fig:boxres}
+\end{figure}
+
+Here we can see that different pairs have different distributions. We also see that some boxes are over or under the $0$-line, those are potential interactions. The next step now is to decide which of the pairs actually have a significant interaction effect.
+
+
+\subsection{Significance}
+
+We use the moderated $t$-test implemented in the \Rfunction{eBayes} function in the \Rpackage{limma} package. The \Rfunction{df2lmFit} function will take our data frame, format the data and then call the \Rfunction{lmFit} function. In the next step we can run \Rfunction{eBayes} on the resulting object and then summarise the results in a table using \Rfunction{interactiontable}.
+
+<<ebayes>>=
+ebfit = df2lmFit(dfScl1)
+eb = eBayes(ebfit)  
+tt1 =interactiontable(eb,ord.t=TRUE) 
+ebfit = df2lmFit(dfScl2)
+eb = eBayes(ebfit)  
+tt2 =  interactiontable(eb)
+head(tt2)
+@ 
+
+
+
+The following command produces the p-value plot that shows the cumulative $p$-values from the analyses. The bends at small $p$-values indicates that true interactions are present in this data set. 
+
+\begin{figure}
+  \centering
+<<fig=TRUE, include=TRUE,width=9,height=4.5>>=
+Pplot(tt2$P,maint = "Screen 2")
+@ 
+\caption{$p$-value plot for screen 2.}
+\label{fig:ssplot}
+\end{figure}
+\subsection{Results}
+
+In the screen 1 experiment we know which genes are involved in cell-cycling and which genes that were randomly chosen, we can therefore provide some external information to the interaction plots. 
+
+<<read key>>= 
+data(key)
+colkey = ifelse(key$cellCycle==0,"grey","orange")
+names(colkey)=as.character(key$GeneID)
+key = key$cellCycle
+names(key) = names(colkey)
+@
+
+We now set a threshold, here we use $0.001$. 
+
+<<threshold>>=
+thrs1 = 0.001
+@ 
+
+
+Now we can look at the graph of significant interactions. As the best way to visualise the networks is to use the Graphviz software, the function \Rfunction{data2graph} writes a .dot file to the current directory. This .dot file can then be used to create a pdf file as shown in the code below. The graph for screen 1 is shown in Fig.~\ref{fig:grscreen1}a. 
+
+<<>>=
+tt1t = tt1
+thrs1 = 0.1
+
+g1= data2graph(tt1,thres=thrs1,thresBy="ord.p.adj",nodecolor=colkey,
+  sizethres=0.3, writedot=TRUE, filename = 'interactionGraph1.dot', 
+  shape='ellipse',scaleFactor=10,fixedsize=FALSE,fontsize=100,
+  penwidth=20,width=2,gamma.col=0)
+system('neato -Tpdf interactionGraph1.dot >interactionGraph1.pdf')
+@ 
+
+
+And the graph for screen 2 is shown in Fig.~\ref{fig:grscreen2}a
+
+<<>>=
+g2 = data2graph(tt2,thres=thrs1,writedot=TRUE, scaleFactor=10,
+  filename = 'interactionGraph2.dot',fontsize=20,penwidth=10,
+  width=2,fixedsize=TRUE,nodecolor="grey",sizethres=0.3,gamma.col=0)
+system('neato -Tpdf interactionGraph2.dot >interactionGraph2.pdf')
+@ 
+
+We can also plot the correlation network by first calculating the correlations between the interaction profiles. The function \Rfunction{tt2matrix} transform the data in the interactiontable to a matrix. \Rfunction{cortestmatrices} calculates the correlation coefficients and the corresponding p-values.  
+
+<<>>=
+mat = tt2matrix(tt1,what="size")
+thrs=0.9
+cormat = cortestmatrices(mat,method="spearman")
+cormat[[2]][abs(cormat[[1]])<0.8]=1
+c1 = data2graph(list("size"=cormat[[1]],"pvalues"=cormat[[2]]),
+  thres=thrs,writedot=TRUE, scaleFactor=2, filename = 'correlationGraph1.dot',
+  shape='ellipse',fixedsize=FALSE,nodecolor=colkey,fontsize=30,penwidth=5,
+  gamma.col=0)
+system('neato -Tpdf correlationGraph1.dot >correlationGraph1.pdf')
+@ 
+
+
+The correlation graph for screen 1 is shown in Fig.~\ref{fig:grscreen1}b
+
+<<>>=
+mat = tt2matrix(tt2,what="size")
+cormat = cortestmatrices(mat,method="spearman")
+c2 = data2graph(list("size"=cormat[[1]],"pvalues"=cormat[[2]]),thres=
+  thrs1,writedot=TRUE, scaleFactor=20, filename = 'correlationGraph2.dot',
+  width=2,fontsize=50,penwidth=4,fixedsize=TRUE,nodecolor="grey")
+system('neato -Tpdf correlationGraph2.dot >correlationGraph2.pdf')
+@ 
+The correlation graph for screen 2 is shown in Fig.~\ref{fig:grscreen2}b
+
+\begin{figure}
+  \includegraphics[width=0.45\linewidth]{interactionGraph1.pdf}
+  \includegraphics[width=0.45\linewidth]{correlationGraph1.pdf}
+ \caption{Interaction graph (left panel) and correlation graph (right panel) for screen 1.}
+\label{fig:grscreen1}
+\end{figure}
+
+\begin{figure}
+  \includegraphics[width=0.45\linewidth]{interactionGraph2.pdf}
+  \includegraphics[width=0.45\linewidth]{correlationGraph2.pdf}
+  \caption{Interaction graph (left panel) and correlation graph (right panel) for screen2.}
+  \label{fig:grscreen2}
+\end{figure}
+
+
+
+Sometimes a levelplot will be more informative, like here for screen 1. 
+\begin{figure}
+  \centering
+<<fig=TRUE,include=TRUE,width=4.5,height=4.5>>=
+InteractLevelPlot(tt1,key = key,thresh=thrs1,by="P.Value",zerolimit=0.1,
+                  colorRampPalette(c("blue", "white", "red")))
+@ 
+\caption{Levelplot for resulting interactions in screen 1.}
+\label{fig:lvl}
+\end{figure}
+It is also possible to cluster all dsRNA based on their interaction profiles. 
+
+\begin{figure}
+  \centering
+<<fig=TRUE,include=TRUE,width=8,height=8>>=
+
+PlotHeatmap(tt2,dendrogram="none",margins = c(2,2), 
+            colorRampPalette(c("blue", "white","red")),
+            lmat=rbind( c(0, 3), c(2,1), c(0,4) ), 
+            lhei=c(0.1, 4, 0.1 ) ,lwid=c(0.1,2))
+@ 
+\caption{Heatmap representation of the resulting interactions in screen 2.}
+\label{fig:heatmap}
+\end{figure}
+\section{Choice of Scale}
+
+In viability screens, the cells are ideally in exponential growth. The number of cells, $N$ is then a function of the time $t$ described by Eq.~\ref{expgrowth}.
+
+\begin{equation}
+  \label{expgrowth}
+  N(t) = N_0e^{kt}
+\end{equation}
+
+\noindent where $N_0$ is the number of cells at the beginning of the experiment and $k$ is the growth rate. The readout measurements from the screens are proportional to the number of cells alive in each well. However, one should be aware that suboptimal experimental conditions can cause saturation effects and/or unknown background intensities.
+
+In the analysis above the so called \emph{relative population size}, $N_{treat}/N_{wt}$, measurement was used. That means the ratio between number of cells in each treatment and the number of cells in the wild type. As the experimental conditions, as well as $N_0$ and $t$ of the were constant over all treatments this measurement is appropriate fitness measurement. Another fitness measurement that has been used in literature is the \emph{relative growth rate}, $k_{treat}/k_{wt}$. To use the relative growth rate measurement instead of the relative population size one needs to transform the data using Eq.~\ref{changeScale}. 
+
+\begin{equation}
+  \label{changeScale}
+  y = \ln\frac{y}{N_0}
+\end{equation}
+
+In the datasets used here, the choice of scale makes very little difference. In fact, for screen 1, the results are practical identical regardless of which scale used. In screen 2 a few data points are affected by the scale choice as can be seen in the following plots.
+
+In our experiments $N_0= 15.000$, so to get the data on the growth rate scale we do:
+
+<<fitness scale>>=
+N0=15000
+sc2 = screen2_raw
+Data(sc2) = log(Data(sc2)/N0)
+@ 
+
+Using the data in \Robject{sc2} we can now re-run our analysis as described above.
+
+<<reanalys>>=
+ksdf2 = cellHTS2df(normalizePlates(sc2,method="shorth",
+  scale="multiplicative",log=TRUE),neutral="Fluc")
+ksdf2 = weightDf(ksdf2,exclude = c("controlN2", "controlP2",
+                         "controlP1N1","controlP1","double"))
+lmres2 = lmmain(ksdf2,per = c("replicate","Direction"))
+ksdf2 = updateDf(ksdf2,lmres2,per = c("replicate","Direction"))
+@ 
+
+A Q-Q plot of the residuals will show us if the residuals are normally distributed. 
+
+\begin{figure}
+  \centering
+<<fig=TRUE,include=TRUE,width=9,height=4.5>>=
+par(mfrow=c(1,2))
+qqnorm(ksdf2$residuals,main="log(log(N/N0))",pch=".")
+qqnorm(dfScl2$residuals,main="log(N)",pch=".")
+@ 
+\caption{Q-Q plot of residuals using two different scales.}
+\label{fig:qq}
+\end{figure}
+
+There are a few outliers but in general the residuals are normally distributed in both scales. It is not possible to tell which scale is more appropriate, but for the absolute majority of the data points it does not make a difference.
+
+\section{Usage of moderated $t$-test}
+
+<<echo=FALSE>>=
+ROCstat=coRNAi:::ROCstat
+@ 
+
+In cases when there are few replicates, the normal $t$-test will occasionally underestimate the standard variation within replicates. A moderated $t$-test will adjust for this. The $t$-values from the moderated $t$-test will follow a $t$-distribution but with a higher number of degrees of freedom which will make the p-values more significant. To show how the moderated $t$-test compares to the normal $t$-test in experiments with few replicates, we produce pseudo ROC curves.
+
+We used the data from screen 1. We applied the ranking methods to the data from a single plate, hosting two
+technical replicate measurements per gene pair. 
+We applied a set of thresholds, with decreasing stringency, to the three ranking methods and obtained the corresponding hit list.
+We then, for each hit list, computed the true positive 
+rate (TPR) as the ratio between the 
+number of true (as defined by the reference) hits found by the 
+ranking method and the total number of true hits, 
+and the false positive rate (FPR) as the ratio between the 
+number of false (as defined by the reference) hits 
+and the total number of true non-hits. This resulted in an ROC curve
+per plate, shown in panel (a). The curves indicate clear benefits from using the
+moderated $t$ or the average effect over the ordinary $t$. In this particular data set, the variance between replicates from the same plate was constant or close to constant across the different interaction pairs. Hence, the variance estimates used in the moderated $t$ test were the same or almost the same for all gene pairs making the resulting moderated $t$-statistic proportional to the numerator of the $t$-statistic (the average effect $\hat{w}_{ij}$). Therefore no significant difference in performance could be seen between the two methods in this setting. Nevertheless, we prefer the moderated $t$ approach, as it is more robust in cases where variations are high. This is illustrated by the second set of ROC curves in panel (b), where instead of using only technical replicates, we used two biological replicates hosting two technical replicates each. 
+\begin{figure}
+  \centering
+<<fig = TRUE, include=TRUE,echo=FALSE,width=9,height=4.5>>=
+## First find bench mark results
+ResTable=tt1
+par(mfrow=c(1,2))
+t = 0.001 # p-value threshold = 0.001
+
+bench.neg.int = ResTable[ResTable$ord.p<t & ResTable$size<0,]
+bench.pos.int = ResTable[ResTable$ord.p<t & ResTable$size>0,]
+
+## function for extracting p values from moderated t-test and ordinary t-test on subset of data
+
+GetStats = function(df2){
+  df = length(unique(df2$replicate))*2-1
+  lm2 = lmmain(df2)
+  df2=updateDf(df2,lm2)
+  ebfit2 = df2lmFit(df2)
+  ebfit2 = eBayes(ebfit2)
+  resTable = interactiontable(ebfit2,ord.t=TRUE)
+  resTable
+}
+
+ordstat=array(NA,c(3,101,10))
+modstat= array(NA,c(3,101,10))
+logstat = array(NA,c(3,101,10))
+resTT = list()
+for (i in 1:10){
+  dfsub = dfScl1[dfScl1$replicate%in%i,]
+  resTT = GetStats(dfsub)
+  thr = seq(0,1,0.01)
+  ordstat[,,i]=sapply(thr,function(x) ROCstat(thrs=x,stats="ord.p",testSet=resTT, trueNegSet = bench.neg.int, truePosSet = bench.pos.int))
+  modstat[,,i]=sapply(thr,function(x) ROCstat(thrs=x,stats="mod.p",testSet=resTT, trueNegSet = bench.neg.int, truePosSet = bench.pos.int))
+  thr = seq(1,0,-0.01)
+  logstat[,,i]=sapply(thr,function(x) ROCstat(thrs=x,stats="size",testSet=resTT, trueNegSet = bench.neg.int, truePosSet = bench.pos.int))
+}
+
+plotROC = function(ordstat,modstat,logstat,main="",...){
+
+  meanord = apply(ordstat,1:2,mean,na.rm=T)
+  meanmod = apply(modstat,1:2,mean,na.rm=T)
+  meanlog = apply(logstat,1:2,mean,na.rm=T)
+
+  col1 = hsv(0.8,0.7,0.7,0.4)
+  col2 = hsv(0.3,.7,.5,0.4)
+  col3 = hsv(0.6,.7,.7)
+  
+  plot(NULL,ylim=c(0,1),xlim=c(0,0.3),ylab = "true positive rate", xlab = "false positive rate",main=main,...)
+  
+  lines(meanord[2,],meanord[1,],col=col1,lwd=4)
+  lines(meanmod[2,],meanmod[1,],col=col2,lwd=4)
+  lines(meanlog[2,],meanlog[1,],col=col3,lwd=4)
+  
+  
+  legend("bottomright", legend = c("moderated t","normal t","effect size"), col= c(col2,col1,col3),lwd=4)
+}
+
+plotROC(ordstat,modstat,logstat,main="a")
+
+ordstat=array(NA,c(3,101,25))
+modstat= array(NA,c(3,101,25))
+logstat = array(NA,c(3,101,25))
+cc = combn(1:10,2)
+r1= which(cc[1,]<6)
+r2 =which(cc[2,]>5)
+combs = cc[,intersect(r1,r2)]
+
+for ( i in 1:ncol(combs)){
+  dfsub = dfScl1[dfScl1$replicate%in%combs[,i],]
+  
+  resTT = GetStats(dfsub)
+  thr = seq(0,1,0.01)
+  ordstat[,,i]=sapply(thr,function(x) ROCstat(thrs=x,stats="ord.p",testSet=resTT, trueNegSet = bench.neg.int, truePosSet = bench.pos.int))
+  modstat[,,i]=sapply(thr,function(x) ROCstat(thrs=x,stats="mod.p",testSet=resTT, trueNegSet = bench.neg.int, truePosSet = bench.pos.int))
+  thr = seq(1,0,-0.01)
+  logstat[,,i]=sapply(thr,function(x) ROCstat(thrs=x,stats="size",testSet=resTT, trueNegSet = bench.neg.int, truePosSet = bench.pos.int))
+}
+plotROC(ordstat,modstat,logstat,main="b")
+@ 
+\caption{ROC curves for two technical replicates (a) and two biological replicates with two technical replicates each (b).}
+\label{fig:roc}
+\end{figure}
+
+The ROC curves in Figure~\ref{fig:roc} are for normal $t$-statistic, moderated $t$-statistic and effect size. With two technical replicates (a) and two biological replicates with two technical replicates each (b). The moderated $t$-statistic and effect size outperform the ordinary $t$-statistic in both scenarios, on biological replicates the moderated $t$-statistics performs better than the effect size.
+
+
+
+
+\section{Speeding up analysis for large datasets}
+
+The combinatorial RNAi knockdown technique is suitable for large scale experiment. It is possible to test many genes against each other or even to test a gene set against the whole genome. In those cases, it is a reasonable assumption that most of the data will not be affected by either main effects nor interaction effects. This assumption allows for a shortcut in estimating the main effects. As the functions \Rfunction{lmmain} and \Rfunction{rlmmain} tend to be rather slow on large datasets this can become convenient.
+
+The \Rfunction{estmodel} estimates the main effects by a location estimate. That means that the estimate for treatment $j$ will be the median/shorth/mean of all (included by the function \Rfunction{weightDf}) wells where treatment $j$ was added. 
+
+In screen 2 the underlying assumption is valid and fitting the effects with the \Rfunction{estmodel} generates similar results as the \Rfunction{lmmain}.
+\begin{figure}
+  \centering
+<<fig=TRUE,include=TRUE,height=4.5,width=9>>=
+lmm = lmmain(dfScl2)
+mm = estmodel(dfScl2,estimate="median")
+par(mfrow=c(1,2))
+plot(mm$coefficient,lmm$coefficient,pch=".",ylab="OLS estimates",
+     xlab="median estimates",main="main effects")
+abline(0,1,col="red")
+plot(mm$residuals,lmm$residuals,pch=".",ylab="OLS estimates",
+     xlab="median estimates",main="residuals")
+abline(0,1,col="red")
+@ 
+\caption{Effect fitted by \Rfunction{lmmain} and \Rfunction{estmodel}.}
+\label{fig:compmod}
+\end{figure}
+
+Consequently the fit diagnostic plots are also similar
+
+\begin{figure}
+  \centering
+<<fig=TRUE,include=TRUE,height=4.5,width=9>>=
+par(mfrow=c(1,2))
+MainFitPlot(mm,main="fitted by estmodel",pch=".")
+MainFitPlot(lmm,main = "fitted by lmmain",pch=".")
+@ 
+\caption{Fit diagnostic for \Rfunction{lmmain} and \Rfunction{estmodel}.}
+\label{fig:fitmods}
+\end{figure}
+
+\section{Session information}
+<<sessionInfo, echo=FALSE>>=
+sessionInfo()
+@
+
+
+
+\end{document}
+

@@ -1,0 +1,13 @@
+Package: coRNAi
+Type: Package
+Title: Analysis of co-knock-down RNAi data
+Version: 0.99.46
+Author: Elin Axelsson 
+Maintainer: <elin@ebi.ac.uk>
+Description:Analysis of combinatorial cell-based RNAi screens 
+License: Artistic-2.0
+Depends: cellHTS2, limma, locfit
+Imports: MASS, gplots, lattice, grDevices, graphics, stats 
+SystemRequiremets: Graphviz
+biocViews: CellBasedAssays
+

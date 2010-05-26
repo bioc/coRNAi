@@ -1,0 +1,9 @@
+importFrom("gplots", "heatmap.2")
+importFrom("lattice", "levelplot")
+importFrom("MASS","isoMDS","rlm")
+importFrom("grDevices","colorRampPalette")
+importFrom("graphics", "abline", "boxplot", "bxp", "pairs", "panel.smooth", "par","points", "segments", "smoothScatter", "strwidth", "text")
+importFrom("stats", "cor", "cor.test", "lm", "median", "p.adjust", "pt", "sd")
+
+
+export(cellHTS2df,df2lmFit,SDplot,MAplot,rlmmain,WithinScreenPlot,BetweenScreenPlot,updateDf,InteractLevelPlot,BoxPlotShorth,MainFitPlot,df2array,lmmain,estmodel,weightDf,PlotHeatmap,df2fitmatrix,interactiontable,tt2matrix,cortestmatrices,data2graph,Pplot)
