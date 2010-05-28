@@ -411,7 +411,7 @@ thrs1 = 0.001
 
 Now we can look at the graph of significant interactions. As the best way to visualise the networks is to use the Graphviz software, the function \Rfunction{data2graph} writes a .dot file to the current directory. This .dot file can then be used to create a pdf file as shown in the code below. The graph for screen 1 is shown in Fig.~\ref{fig:grscreen1}a. 
 
-<<results=hide>>=
+<<>>=
 tt1t = tt1
 thrs1 = 0.1
 
@@ -419,22 +419,22 @@ g1= data2graph(tt1,thres=thrs1,thresBy="ord.p.adj",nodecolor=colkey,
   sizethres=0.3, writedot=TRUE, filename = 'interactionGraph1.dot', 
   shape='ellipse',scaleFactor=10,fixedsize=FALSE,fontsize=100,
   penwidth=20,width=2,gamma.col=0)
-system('neato -Tpdf interactionGraph1.dot >interactionGraph1.pdf')
+system('neato -Tpdf interactionGraph1.dot >interactionGraph1.pdf',show.output.on.console=FALSE)
 @ 
 
 
 And the graph for screen 2 is shown in Fig.~\ref{fig:grscreen2}a
 
-<<results=hide>>=
+<<>>=
 g2 = data2graph(tt2,thres=thrs1,writedot=TRUE, scaleFactor=10,
   filename = 'interactionGraph2.dot',fontsize=20,penwidth=10,
   width=2,fixedsize=TRUE,nodecolor="grey",sizethres=0.3,gamma.col=0)
-system('neato -Tpdf interactionGraph2.dot >interactionGraph2.pdf')
+system('neato -Tpdf interactionGraph2.dot >interactionGraph2.pdf',show.output.on.console=FALSE)
 @ 
 
 We can also plot the correlation network by first calculating the correlations between the interaction profiles. The function \Rfunction{tt2matrix} transform the data in the interactiontable to a matrix. \Rfunction{cortestmatrices} calculates the correlation coefficients and the corresponding p-values.  
 
-<<results=hide>>=
+<<>>=
 mat = tt2matrix(tt1,what="size")
 thrs=0.9
 cormat = cortestmatrices(mat,method="spearman")
@@ -443,19 +443,19 @@ c1 = data2graph(list("size"=cormat[[1]],"pvalues"=cormat[[2]]),
   thres=thrs,writedot=TRUE, scaleFactor=2, filename = 'correlationGraph1.dot',
   shape='ellipse',fixedsize=FALSE,nodecolor=colkey,fontsize=30,penwidth=5,
   gamma.col=0)
-system('neato -Tpdf correlationGraph1.dot >correlationGraph1.pdf')
+system('neato -Tpdf correlationGraph1.dot >correlationGraph1.pdf',show.output.on.console=FALSE)
 @ 
 
 
 The correlation graph for screen 1 is shown in Fig.~\ref{fig:grscreen1}b
 
-<<results=hide>>=
+<<>>=
 mat = tt2matrix(tt2,what="size")
 cormat = cortestmatrices(mat,method="spearman")
 c2 = data2graph(list("size"=cormat[[1]],"pvalues"=cormat[[2]]),thres=
   thrs1,writedot=TRUE, scaleFactor=20, filename = 'correlationGraph2.dot',
   width=2,fontsize=50,penwidth=4,fixedsize=TRUE,nodecolor="grey")
-system('neato -Tpdf correlationGraph2.dot >correlationGraph2.pdf')
+system('neato -Tpdf correlationGraph2.dot >correlationGraph2.pdf',show.output.on.console=FALSE)
 @ 
 The correlation graph for screen 2 is shown in Fig.~\ref{fig:grscreen2}b
 
