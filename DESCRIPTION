@@ -8,6 +8,6 @@ Description:Analysis of combinatorial cell-based RNAi screens
 License: Artistic-2.0
 Depends: cellHTS2, limma, locfit
 Imports: MASS, gplots, lattice, grDevices, graphics, stats 
-SystemRequiremets: Graphviz
+SystemRequirements: Graphviz
 biocViews: CellBasedAssays
 
