@@ -11,7 +11,7 @@ interactiontable = function(ebfit,sort="none",ord.t=FALSE,correction="BH"){
     ordinary.p.all = pt(-(abs(ord.t)),df=defr)*2
     colnames(ordinary.p.all) = "ord.p"
     ResTable$ord.p = ordinary.p.all
-    ord.p.adj = p.adjust(ResTable[,"ord.p"],method=correction)
+    ord.p.adj =matrix(p.adjust(ResTable[,"ord.p"],method=correction))
     colnames(ord.p.adj) = "ord.p.adj"
     ResTable$ord.p.adj = ord.p.adj
   }

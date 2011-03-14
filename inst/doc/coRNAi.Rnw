@@ -1,4 +1,5 @@
-%\VignetteIndexEntry{coRNAi}
+
+% \VignetteIndexEntry{coRNAi}
 %\VignetteKeywords{}
 %\VignettePackage{coRNAi}
 
