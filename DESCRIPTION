@@ -1,7 +1,7 @@
 Package: coRNAi
 Type: Package
 Title: Analysis of co-knock-down RNAi data
-Version: 1.2.0
+Version: 1.3.0
 Author: Elin Axelsson 
 Maintainer: Elin Axelsson <elin@ebi.ac.uk>
 Description:Analysis of combinatorial cell-based RNAi screens 
