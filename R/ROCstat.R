@@ -12,16 +12,16 @@ ROCstat = function(trueNegSet,truePosSet,testSet,thrs,stats=c("ord.p","mod.p","s
     negs  = testSet[testSet$size<(-1*thrs),]
     pos = testSet[testSet$size>(1*thrs),]
   }
-  true.positive.hits =  length(intersect(pos$ID,truePosSet$ID))+length(intersect(negs$ID,trueNegSet$ID))
+  true.positive.hits =  length(intersect(rownames(pos),rownames(truePosSet)))+length(intersect(rownames(negs),rownames(trueNegSet)))
     
-  false.positive.hits = length(setdiff(negs$ID,trueNegSet$ID))+ length(setdiff(pos$ID,truePosSet$ID))   
+  false.positive.hits = length(setdiff(rownames(negs),rownames(trueNegSet)))+ length(setdiff(rownames(pos),rownames(truePosSet)))   
     
-  false.negative.hits = length(setdiff(trueNegSet$ID,negs$ID))+ length(setdiff(truePosSet$ID,pos$ID))
+  false.negative.hits = length(setdiff(rownames(trueNegSet),rownames(negs)))+ length(setdiff(rownames(truePosSet),rownames(pos)))
     
-  true.negative.hits = length(testSet$ID)-false.negative.hits-false.positive.hits-true.positive.hits
+  true.negative.hits = length(rownames(testSet))-false.negative.hits-false.positive.hits-true.positive.hits
     
-  false.positive.hits = length(setdiff(negs$ID,trueNegSet$ID))+ length(setdiff(pos$ID,truePosSet$ID))   
-    TPR = true.positive.hits/(length(trueNegSet$ID)+length(truePosSet$ID))
+  false.positive.hits = length(setdiff(rownames(negs),rownames(trueNegSet)))+ length(setdiff(rownames(pos),rownames(truePosSet)))   
+    TPR = true.positive.hits/(length(rownames(trueNegSet))+length(rownames(truePosSet)))
      FPR = false.positive.hits/(false.positive.hits+true.negative.hits)
                                         
       
