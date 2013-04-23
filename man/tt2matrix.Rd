@@ -33,6 +33,7 @@ Elin Axelsson
 \examples{
 ## simulated data
 mytoptable = data.frame("ID" = c("A B", "A C", "B C"),"size"=c(1:3),stringsAsFactors=FALSE)
+rownames(mytoptable) = mytoptable$ID
 mat = tt2matrix(mytoptable,what="size")
 
 }

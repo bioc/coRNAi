@@ -1,6 +1,7 @@
 tt2matrix=function(toptable,what){
-  #genes = sort(unique(unlist(strsplit(toptable$ID," "))))
- genes = sort(unique(unlist(strsplit(rownames(toptable)," "))))
+	toptable$ID = rownames(toptable)  
+	genes = sort(unique(unlist(strsplit(toptable$ID," "))))
+ #genes = sort(unique(unlist(strsplit(rownames(toptable)," "))))
  if(!what%in%colnames(toptable))
     stop ("\"what\" argument not present in toptable") 
   
@@ -10,11 +11,10 @@ tt2matrix=function(toptable,what){
     for (j in colnames(dm)){
       if(k!=j){
         ind = paste(max(k,j),min(k,j),sep= " ")
-        if(!ind%in%rownames(toptable))
+        if(!ind%in%toptable$ID)
           ind = paste(min(k,j),max(k,j),sep= " ")
-        #dm[k,j] = toptable[which(toptable$ID==ind) ,what]
-	dm[k,j] = toptable[ind,what]      
-	}
+        dm[k,j] = toptable[which(toptable$ID==ind) ,what]
+      }
     }
   }
   dm

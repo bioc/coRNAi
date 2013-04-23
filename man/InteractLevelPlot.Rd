@@ -46,9 +46,10 @@ Elin Axelsson
  \code{\link{levelplot}}
 }
 \examples{
-# similated data
+
 data(screen1_raw)
 df = cellHTS2df(screen1_raw,neutral="Fluc")
-tt = data.frame("ID"=(unique(df$Pair[df$Type=="comb"])),"size"=runif(length(unique(df$Pair[df$Type=="comb"])),-2,2),stringsAsFactors=FALSE)
+tt = data.frame("size"=runif(length(unique(df$Pair[df$Type=="comb"])),-2,2),stringsAsFactors=FALSE)
+rownames(tt) = unique(df$Pair[df$Type=="comb"])
 InteractLevelPlot(tt,thres=0,by="size")
 }
