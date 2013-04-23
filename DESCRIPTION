@@ -3,7 +3,7 @@ Type: Package
 Title: Analysis of co-knock-down RNAi data
 Version: 1.11.0
 Author: Elin Axelsson 
-Maintainer: Elin Axelsson <elin@ebi.ac.uk>
+Maintainer: Elin Axelsson <elin.axelsson@imp.ac.at>
 Description:Analysis of combinatorial cell-based RNAi screens 
 License: Artistic-2.0
 Depends: R (>= 2.10), cellHTS2, limma, locfit
