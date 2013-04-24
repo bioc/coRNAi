@@ -1,5 +1,5 @@
 interactiontable = function(ebfit,sort="none",ord.t=FALSE,correction="BH"){
-  ResTable = topTable(eBayes(ebfit),n=length(ebfit@.Data[[6]]),sort="none",adjust.method=correction)
+  ResTable = topTable(eBayes(ebfit),n=length(ebfit@.Data[[6]]),sort.by="none",adjust.method=correction)
   a=colnames(ResTable)
   a[a=="logFC"]="size"
   colnames(ResTable) = a
